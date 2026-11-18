@@ -438,7 +438,35 @@ async function addMessage(message){
   body.append(photo);
  }
 
- row.append(avatar,body);
+ if (myProfile?.is_admin) {
+  const deleteBtn = document.createElement("button");
+  deleteBtn.textContent = "🗑️ Удалить";
+  deleteBtn.style.cssText =
+    "background:#8c3046;color:white;padding:7px 10px;border-radius:8px;margin-top:8px;cursor:pointer";
+
+  deleteBtn.onclick = async () => {
+    if (!confirm("Удалить это сообщение?")) return;
+
+    deleteBtn.disabled = true;
+
+    const { error } = await db
+      .from("messages")
+      .delete()
+      .eq("id", message.id);
+
+    if (error) {
+      alert("Ошибка удаления: " + error.message);
+      deleteBtn.disabled = false;
+      return;
+    }
+
+    row.remove();
+  };
+
+  body.append(deleteBtn);
+}
+
+row.append(avatar,body);
  $("messages").append(row);
  $("messages").scrollTop=$("messages").scrollHeight;
 }
