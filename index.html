@@ -1,0 +1,283 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ОПГ МАКАКИ</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #10121a;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+
+header {
+  background: #191d2b;
+  padding: 25px;
+  text-align: center;
+  border-bottom: 2px solid #8055e8;
+}
+
+header h1 { margin: 0; font-size: 30px; }
+header p { color: #999; font-size: 12px; }
+
+main {
+  max-width: 650px;
+  margin: 35px auto;
+  padding: 15px;
+}
+
+.panel {
+  background: #1b1f2d;
+  padding: 22px;
+  border-radius: 15px;
+}
+
+input {
+  width: 100%;
+  padding: 14px;
+  background: #292e40;
+  border: 1px solid #444b60;
+  border-radius: 9px;
+  color: white;
+  font-size: 15px;
+}
+
+button {
+  background: #8055e8;
+  color: white;
+  border: 0;
+  border-radius: 9px;
+  padding: 14px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+#loginScreen {
+  max-width: 400px;
+  margin: 70px auto;
+  text-align: center;
+}
+
+#loginScreen button { width: 100%; margin-top: 12px; }
+
+#chatScreen { display: none; }
+
+#messages {
+  height: 430px;
+  overflow-y: auto;
+  background: #121621;
+  padding: 14px;
+  border-radius: 10px;
+  margin: 15px 0;
+}
+
+.message {
+  background: #252b3b;
+  padding: 12px;
+  border-radius: 9px;
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+}
+
+.nickname { color: #ad91ff; font-weight: bold; }
+.messageText { margin-top: 7px; }
+.time { color: #888; font-size: 11px; margin-top: 7px; }
+
+.sendArea { display: flex; gap: 8px; }
+.sendArea input { flex: 1; min-width: 0; }
+
+.error { color: #ff7777; }
+
+@media(max-width: 500px) {
+  #messages { height: 55vh; }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>🐒 ОПГ МАКАКИ</h1>
+  <p>ГЛОБАЛЬНЫЙ ЧАТ МАКАК</p>
+</header>
+
+<main>
+
+<div id="loginScreen" class="panel">
+  <h2>🐵 Добро пожаловать!</h2>
+  <p style="color:#aaa">Придумай себе никнейм</p>
+
+  <input id="nicknameInput" maxlength="20"
+    placeholder="Твой никнейм...">
+
+  <button onclick="login()">ВОЙТИ В ЧАТ</button>
+  <p id="loginError" class="error"></p>
+</div>
+
+<div id="chatScreen" class="panel">
+  <h2>💬 Общий чат</h2>
+  <p>Твой ник: <b id="currentNick"></b></p>
+
+  <button onclick="logout()">СМЕНИТЬ НИК</button>
+
+  <div id="messages"></div>
+
+  <div class="sendArea">
+    <input id="messageInput" maxlength="500"
+      placeholder="Напиши сообщение...">
+    <button id="sendButton" onclick="sendMessage()">➤</button>
+  </div>
+
+  <p id="chatError" class="error"></p>
+</div>
+
+</main>
+
+<script>
+
+// ВСТАВЬ СВОИ ДАННЫЕ SUPABASE
+
+const SUPABASE_URL = "https://yixjcoqrtpjanlosrloi.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-cYnU1bmLnBkoszRDzFQ8A_J8LMt1f7";
+
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+
+let nickname = "";
+let channel = null;
+
+async function login() {
+  const value = document.getElementById("nicknameInput").value.trim();
+
+  if (!value) {
+    document.getElementById("loginError").textContent =
+      "Введи никнейм!";
+    return;
+  }
+
+  nickname = value;
+
+  document.getElementById("currentNick").textContent = nickname;
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("chatScreen").style.display = "block";
+
+  await loadMessages();
+  startRealtime();
+}
+
+async function loadMessages() {
+  const { data, error } = await db
+    .from("messages")
+    .select("*")
+    .order("created_at", { ascending: true })
+    .limit(100);
+
+  if (error) {
+    document.getElementById("chatError").textContent =
+      "Ошибка: " + error.message;
+    return;
+  }
+
+  document.getElementById("messages").innerHTML = "";
+  data.forEach(showMessage);
+  scrollBottom();
+}
+
+function showMessage(msg) {
+  const box = document.createElement("div");
+  box.className = "message";
+
+  const name = document.createElement("div");
+  name.className = "nickname";
+  name.textContent = msg.nickname;
+
+  const content = document.createElement("div");
+  content.className = "messageText";
+  content.textContent = msg.content;
+
+  const time = document.createElement("div");
+  time.className = "time";
+  time.textContent = new Date(msg.created_at).toLocaleString("ru-RU");
+
+  box.append(name, content, time);
+  document.getElementById("messages").appendChild(box);
+}
+
+async function sendMessage() {
+  const input = document.getElementById("messageInput");
+  const button = document.getElementById("sendButton");
+  const content = input.value.trim();
+
+  if (!content || button.disabled) return;
+
+  button.disabled = true;
+
+  const { error } = await db.from("messages").insert({
+    nickname: nickname,
+    content: content
+  });
+
+  button.disabled = false;
+
+  if (error) {
+    document.getElementById("chatError").textContent =
+      "Ошибка отправки: " + error.message;
+  } else {
+    input.value = "";
+    document.getElementById("chatError").textContent = "";
+  }
+}
+
+function startRealtime() {
+  if (channel) db.removeChannel(channel);
+
+  channel = db.channel("makaki-chat")
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "messages"
+    }, payload => {
+      showMessage(payload.new);
+      scrollBottom();
+    })
+    .subscribe();
+}
+
+function scrollBottom() {
+  const box = document.getElementById("messages");
+  box.scrollTop = box.scrollHeight;
+}
+
+function logout() {
+  if (channel) {
+    db.removeChannel(channel);
+    channel = null;
+  }
+
+  nickname = "";
+  document.getElementById("chatScreen").style.display = "none";
+  document.getElementById("loginScreen").style.display = "block";
+  document.getElementById("nicknameInput").value = "";
+  document.getElementById("messages").innerHTML = "";
+}
+
+document.getElementById("messageInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") sendMessage();
+});
+
+document.getElementById("nicknameInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") login();
+});
+
+</script>
+</body>
+</html>
